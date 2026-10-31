@@ -41,7 +41,6 @@ Uso desde proyecto/:
         --csv-autores ../ruta/supplement-data/CSV/"all experiments_preprocessing.csv"
 """
 import argparse
-import csv
 from pathlib import Path
 
 import mne
@@ -49,7 +48,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-from procesamiento import artefactos, config, qc, segmentacion
+from procesamiento import artefactos, config, marcas_autores, qc, segmentacion
 from procesamiento.ver_senal import posicion_y, veo_ptp, veo_ptp_sin_evocada
 
 VENTANA_EEG = getattr(config, "VENTANA_EEG", None) or (-1.0, 1.0)   # s; tramo que se usa de verdad (pre -1..0, post 0..1)
@@ -57,7 +56,6 @@ VENTANA_EEG = getattr(config, "VENTANA_EEG", None) or (-1.0, 1.0)   # s; tramo q
 VENTANA_N2P2 = (min(config.VENTANA_N2[0], config.VENTANA_P2[0]), max(config.VENTANA_N2[1], config.VENTANA_P2[1]))
 Y_MAX_LEJANOS_MM = 30         # canales mas adelantados que esto (Fz, F*, AF*, Fp*) se consideran cerca de los ojos
 MIN_EPOCAS_NIVEL = 3          # con menos epocas en un nivel no se calcula el N2-P2 de ese nivel
-COL_EXPERIMENTO = 20          # el experimento 6 ocupa las columnas 20..23 del CSV de los autores
 
 CANALES_CENTRALES_CRITERIO = ("Cz", "C3", "C4")   # variante `centrales`: lejos de los ojos, N2-P2 visible
 
@@ -91,30 +89,6 @@ VARIANTES = {
 }
 # variantes con la senal corregida por regresion de VEO: nombre -> medir el EEG solo en VENTANA_EEG
 VARIANTES_REGRESION = {"regresion_veo": False, "regresion_veo_ventana": True}
-
-
-# ---------------------------------------------------------------------------
-# Autores
-# ---------------------------------------------------------------------------
-
-def cargar_autores(ruta_csv, sub):
-    """(epocas malas 0-based, electrodos malos) que marcaron los autores para `sub`.
-
-    Devuelve (None, []) si no hay CSV o no esta el sujeto. Los indices de epoca son los de ellos
-    (1 a 80, en el orden de sus eventos): asumimos que coincide con el nuestro, hay que verificarlo.
-    """
-    if not ruta_csv:
-        return None, []
-    if not Path(ruta_csv).exists():
-        raise FileNotFoundError(f"No existe el CSV de los autores: {ruta_csv}")
-    numero = str(int(sub.replace("sub-", "")))
-    with open(ruta_csv, encoding="utf-8-sig", newline="") as f:
-        for fila in csv.reader(f):
-            if len(fila) > COL_EXPERIMENTO + 2 and fila[COL_EXPERIMENTO].strip() == numero:
-                epocas = {int(x) - 1 for x in fila[COL_EXPERIMENTO + 1].split() if x.isdigit()}
-                electrodos = [x for x in fila[COL_EXPERIMENTO + 2].split() if x != "\\"]
-                return epocas, electrodos
-    return None, []
 
 
 # ---------------------------------------------------------------------------
@@ -293,11 +267,10 @@ def correr(sujetos, csv_autores=None, carpeta=None):
         if not ruta.exists():
             print(f"{sub}: no estan las epocas ({ruta}). Corre antes el pipeline.")
             continue
-        ep = mne.read_epochs(ruta, verbose="ERROR")
-        malas_autores, electrodos = cargar_autores(csv_autores, sub)
-        if csv_autores and malas_autores is None:
-            print(f"{sub}: no esta en el CSV de los autores")
-        t, m = comparar_sujeto(ep, sub, malas_autores, electrodos)
+        m_aut = marcas_autores.marcas_de(sub, csv_autores)
+        ep = marcas_autores.aplicar_marcas(mne.read_epochs(ruta, verbose="ERROR"), m_aut)
+        t, m = comparar_sujeto(ep, sub)
+        electrodos = m_aut.electrodos
         t["electrodos_malos_autores"] = " ".join(electrodos)
         tablas.append(t)
         fila_f = {"sujeto": sub, **{f"rho_VEO_N2P2_{c}": r for c, r in fuga_veo(m, ep).items()}}

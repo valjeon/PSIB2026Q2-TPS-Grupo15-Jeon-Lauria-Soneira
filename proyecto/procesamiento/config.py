@@ -61,7 +61,7 @@ UMBRALES_PTP_UV = (100, 150)        # lineas de referencia en la figura de pico 
 VENTANA_VEO = (-0.2, 0.8)           # s; parpadeo en esta ventana (N2/P2) -> la epoca se descarta
 UMBRAL_VEO_UV = 100                 # pico a pico maximo de VEO en VENTANA_VEO
 UMBRAL_RECHAZO_UV = 100             # pico a pico maximo en cualquier canal EEG (epoca completa)
-CANALES_SIN_CRITERIO_EEG = ["Fp1", "Fpz", "Fp2", "AF7", "AF3", "AFz", "AF4", "AF8"]  # ojos -> los decide VEO
+CANALES_SIN_CRITERIO_EEG = ["Fp1", "Fpz", "Fp2", "AF7", "AF3", "AF4", "AF8"]  # ojos -> los decide VEO
 
 # --- Inclusion de sujetos (pipeline.py) ---
 MIN_EPOCAS_LIMPIAS = 10             # epocas limpias minimas por nivel de NIVELES_MINIMOS

@@ -68,22 +68,6 @@ def test_nivel_con_pocas_epocas_da_nan(ep):
     assert np.isnan(res["E4"][1])
 
 
-def test_csv_inexistente_falla():
-    with pytest.raises(FileNotFoundError):
-        sensibilidad.cargar_autores("no_existe.csv", "sub-001")
-
-
-def test_cargar_autores(tmp_path):
-    fila = [""] * 20 + ["5", "60 73 74", "Fpz Fp2", "1 2"]
-    barra = [""] * 20 + ["1", "\\", "\\", "2"]
-    p = tmp_path / "a.csv"
-    p.write_text("\n".join(",".join(f) for f in (fila, barra)), encoding="utf-8")
-    assert sensibilidad.cargar_autores(p, "sub-005") == ({59, 72, 73}, ["Fpz", "Fp2"])
-    assert sensibilidad.cargar_autores(p, "sub-001") == (set(), [])
-    assert sensibilidad.cargar_autores(None, "sub-001") == (None, [])
-    assert sensibilidad.cargar_autores(p, "sub-099") == (None, [])
-
-
 def test_regresion_veo_quita_el_parpadeo_sin_descartar_la_epoca(ep):
     t, m = sensibilidad.comparar_sujeto(ep, "sub-x")
     por = t.set_index("variante")

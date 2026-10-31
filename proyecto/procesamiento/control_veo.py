@@ -36,7 +36,7 @@ from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from procesamiento import config, segmentacion, sensibilidad
+from procesamiento import config, marcas_autores, segmentacion, sensibilidad
 
 NIVELES_COMPARADOS = ("E1", "E4")
 UMBRAL_EEG_UV = 100
@@ -129,6 +129,7 @@ def correr(sujetos, carpeta=None):
             print(f"{sub}: no estan las epocas ({ruta}). Corre antes el pipeline.")
             continue
         ep = mne.read_epochs(ruta, verbose="ERROR")
+        ep = marcas_autores.aplicar_marcas(ep, marcas_autores.marcas_de(sub))
         if config.CANAL_EOG not in ep.ch_names:
             print(f"{sub}: no tiene canal {config.CANAL_EOG}, se omite")
             continue

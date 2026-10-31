@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import mne
 import numpy as np
 import pandas as pd
-from procesamiento import config, qc, segmentacion
+from procesamiento import config, marcas_autores, qc, segmentacion
 
 
 # Medidas
@@ -163,7 +163,9 @@ def limpiar_sujeto(sub, carpeta=None):
     r = rutas(sub, carpeta)
     if not r["epocas"].exists():
         raise FileNotFoundError(f"No esta {r['epocas']}. Corre antes: python -m procesamiento.qc {sub}")
-    ep = con_referencia_promedio(mne.read_epochs(r["epocas"], verbose="ERROR"))
+    ep = mne.read_epochs(r["epocas"], verbose="ERROR")
+    ep = marcas_autores.aplicar_marcas(ep, marcas_autores.marcas_de(sub))   # antes de la ref. promedio
+    ep = con_referencia_promedio(ep)
     final, tabla, medidas = rechazar(ep)
 
     final.save(r["limpias"], overwrite=True, verbose="ERROR")

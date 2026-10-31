@@ -35,7 +35,7 @@ import matplotlib
 import mne
 import pandas as pd
 
-from procesamiento import artefactos, config, datos, filtros, qc, rasgos, segmentacion
+from procesamiento import artefactos, config, datos, filtros, marcas_autores, qc, rasgos, segmentacion
 
 TOTAL_ESPERADO = len(config.NIVELES) * config.PULSOS_POR_NIVEL   # 80 pulsos por sujeto
 
@@ -69,7 +69,7 @@ def procesar_sujeto(sub, filtro="fir", rehacer=False, con_qc=True, carpeta=None,
     # 2. qc de las epocas crudas
     if con_qc:
         print("[2/5] Control de calidad de las epocas crudas...")
-        qc.correr_qc(ep, sub, carpeta=carpeta)
+        qc.correr_qc(marcas_autores.aplicar_marcas(ep, marcas_autores.marcas_de(sub)), sub, carpeta=carpeta)
     t1 = time.time()
 
     # 3. rechazo de artefactos
@@ -93,7 +93,7 @@ def procesar_sujeto(sub, filtro="fir", rehacer=False, con_qc=True, carpeta=None,
         n_rasgos = len(rasgos.rasgos_sujeto(sub, carpeta))
         t_ras = time.time() - t2
 
-    return armar_fila(sub, filtro, tabla, n2p2, t_seg, t_lim, time.time() - t0, n_rasgos, t_ras)
+    return armar_fila(sub, filtro, tabla, n2p2, t_seg, t_lim, time.time() - t0, n_rasgos, t_ras, segmentadas=len(ep))
 
 
 def evaluar_inclusion(tabla):
@@ -119,16 +119,18 @@ def sujetos_incluidos(carpeta=None, filtro="fir"):
     return sorted(r.loc[(r["estado"] == "ok") & (r["incluido"] == True), "sujeto"])  # noqa: E712
 
 
-def armar_fila(sub, filtro, tabla, n2p2, t_seg, t_lim, t_total, n_rasgos=0, t_ras=0.0):
+def armar_fila(sub, filtro, tabla, n2p2, t_seg, t_lim, t_total, n_rasgos=0, t_ras=0.0, segmentadas=None):
     """Fila de resumen a partir de la tabla de rechazo de artefactos.limpiar_sujeto."""
     t = tabla.set_index("condicion")
-    segmentadas = int(t["antes"].sum())
+    antes = int(t["antes"].sum())
+    segmentadas = antes if segmentadas is None else segmentadas
     fila = {
         "sujeto": sub,
         "filtro": filtro,
         "estado": "ok",
         "segmentadas": segmentadas,
         "completo": segmentadas == TOTAL_ESPERADO,   # 80 pulsos, 20 por nivel, todos con ventana completa
+        "por_autores": segmentadas - antes,
         "rechazadas": int(t["rechazadas"].sum()),
         "por_VEO": int(t["por_VEO"].sum()),
         "por_EEG": int(t["por_EEG"].sum()),
@@ -189,7 +191,8 @@ def imprimir_resumen(filas):
         aviso = "" if f["completo"] else f"  <- ATENCION: {f['segmentadas']} segmentadas, se esperaban {TOTAL_ESPERADO}"
         excl = "" if f["incluido"] else f"  <- EXCLUIDO ({f['motivo_exclusion']})"
         print(f"{f['sujeto']}: {f['segmentadas']} epocas -> {f['limpias']} limpias "
-              f"({f['rechazadas']} rechazadas: VEO {f['por_VEO']}, EEG {f['por_EEG']}) en {f['total_s']} s{aviso}{excl}")
+              f"({f['rechazadas']} rechazadas: autores {f['por_autores']}, VEO {f['por_VEO']}, "
+              f"EEG {f['por_EEG']}) en {f['total_s']} s{aviso}")
     if ok:
         print(f"\n{sum(f['incluido'] for f in ok)}/{len(ok)} sujetos cumplen la regla de inclusion")
         print(f"{len(ok)}/{len(filas)} sujetos ok; tiempo medio {sum(f['total_s'] for f in ok) / len(ok):.0f} s por sujeto")

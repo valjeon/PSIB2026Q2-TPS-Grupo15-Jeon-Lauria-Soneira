@@ -21,7 +21,7 @@ import mne
 import numpy as np
 import pandas as pd
 
-from procesamiento import artefactos, config, segmentacion
+from procesamiento import artefactos, config, marcas_autores, segmentacion
 
 CANALES_CENTRALES = ["Fz", "F1", "F2", "FC1", "FC2", "Cz", "C1", "C2", "CP1", "CP2", "CPz", "Pz", "P1", "P2"]
 VENTANA_LEP = (0.1, 0.6)
@@ -82,6 +82,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     for sub in a.sujetos:
         ep = mne.read_epochs(segmentacion.ruta_epocas(sub), verbose="ERROR")
+        ep = marcas_autores.aplicar_marcas(ep, marcas_autores.marcas_de(sub))
         t = epocas_rechazadas_por_eeg(ep)
         print(f"\\n=== {sub}: {len(t)} epocas rechazadas por EEG (umbral {config.UMBRAL_RECHAZO_UV} uV) ===")
         if t.empty:
