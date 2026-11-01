@@ -56,12 +56,23 @@ VENTANA_N2 = (0.12, 0.30)           # s; busqueda del minimo (N2 en mano ~200-25
 VENTANA_P2 = (0.25, 0.50)           # s; busqueda del maximo (P2 ~300-400 ms)
 UMBRALES_PTP_UV = (100, 150)        # lineas de referencia en la figura de pico a pico
 
-# --- Artefactos sin ICA (artefactos.py) ---------------------------------------
+# --- Limpieza comun (canales_malos.py, preprocesado.py) ----------------------
+# Sin usar el nivel (E1..E4): se aplica antes del localizador.
+CANALES_SIN_CRITERIO_EEG = ["Fp1", "Fpz", "Fp2", "AF7", "AF3", "AF4", "AF8"]  # ojos -> los decide VEO
+Z_CANAL_MALO = 5.0                  # z robusto del ruido pre-estimulo para marcar un canal (canales_malos.py)
+FRAC_EPOCAS_CANAL_MALO = 0.5        # fraccion de epocas atipicas para considerarlo malo (y no epocas malas)
+FACTOR_CANAL_PLANO = 0.1            # pico a pico tipico menor a esto x la mediana -> canal plano
+UMBRAL_GROSERO_UV = 300             # pico a pico maximo (sin frontopolares, 30 Hz) -> epoca grosera (preprocesado.py)
+VENTANA_GROSERO = (-1.0, 1.0)       # s; tramo donde se busca el artefacto grosero (el que se analiza)
+REF_SIN_FRONTALES = True            # referencia promedio sin CANALES_SIN_CRITERIO_EEG: el ojo no se reparte a Cz
+REGRESION_VEO = False               # descartada: el VEO explica poco de los frontales (R2 6-34%, pocos parpadeos espontaneos)
+VENTANAS_BETA_VEO = [(-1.0, 0.0), (1.0, 2.0)]   # s; tramos sin LEP donde se estima el beta del VEO
+
+# --- Rechazo (artefactos.py, a revisar) --------------------------------------
 # Pico a pico medido sobre una copia con pasa-bajos de 30 Hz (banda de los LEPs).
 VENTANA_VEO = (-0.2, 0.8)           # s; parpadeo en esta ventana (N2/P2) -> la epoca se descarta
 UMBRAL_VEO_UV = 100                 # pico a pico maximo de VEO en VENTANA_VEO
 UMBRAL_RECHAZO_UV = 100             # pico a pico maximo en cualquier canal EEG (epoca completa)
-CANALES_SIN_CRITERIO_EEG = ["Fp1", "Fpz", "Fp2", "AF7", "AF3", "AF4", "AF8"]  # ojos -> los decide VEO
 
 # --- Inclusion de sujetos (pipeline.py) ---
 MIN_EPOCAS_LIMPIAS = 10             # epocas limpias minimas por nivel de NIVELES_MINIMOS

@@ -1,4 +1,4 @@
-"""Lote: bajar -> procesar -> verificar -> borrar el crudo, sujeto por sujeto.
+"""Lote: bajar -> segmentar -> borrar el crudo, sujeto por sujeto.
 
 Nunca acumula crudos: como mucho hay UN sujeto descargado (~1.6 GB) a la vez.
 Lo que queda por sujeto en derived_mine/sub-XXX/ son las epocas (~26 MB) y los CSV.
@@ -6,7 +6,6 @@ Lo que queda por sujeto en derived_mine/sub-XXX/ son las epocas (~26 MB) y los C
 - Se puede cortar y volver a lanzar: los sujetos ya terminados (tienen rasgos.csv) se saltean.
 - Si un sujeto falla, su crudo NO se borra (para poder revisarlo) y el lote sigue con el siguiente.
 - Deja un registro en derived_mine/lote_registro.csv (estado, minutos, error de cada sujeto).
-- Copia rechazo.csv y rasgos.csv a <repo>/resultados/ para compartirlos por git.
 
 Uso desde proyecto/:
     python -m procesamiento.lote sub-XXX          # sujetos sueltos
@@ -25,7 +24,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from procesamiento import config
+from procesamiento import config, segmentacion
 
 URL_BASE = "https://s3.amazonaws.com/openneuro.org/ds005293"
 ARCHIVOS = ["eeg.vhdr", "eeg.vmrk", "eeg.eeg", "eeg.json", "channels.tsv", "electrodes.tsv", "events.tsv"]
@@ -36,13 +35,11 @@ def rutas(sub):
     salida = Path(config.CARPETA_SALIDA) / sub
     return {
         "crudo": Path(config.RAIZ_DATOS) / sub,
-        "rasgos": salida / f"{sub}_rasgos.csv",
-        "rechazo": salida / f"{sub}_rechazo.csv",
     }
 
 
 def ya_hecho(sub):
-    return rutas(sub)["rasgos"].exists()
+    return segmentacion.ruta_epocas(sub).exists()
 
 
 def espacio_libre_gb(carpeta):
@@ -76,20 +73,10 @@ def descargar(sub, simular=False):
 
 
 def procesar(sub):
-    """Corre el pipeline del grupo. El exito se verifica por los archivos que deja, no por el codigo
-    de salida (pipeline.py atrapa los errores y sigue)."""
-    subprocess.run([sys.executable, "-m", "procesamiento.pipeline", sub])
+    """Segmenta el sujeto (filtra, epoca y guarda -epo.fif + metadata). El exito se verifica por el archivo."""
+    subprocess.run([sys.executable, "-m", "procesamiento.segmentacion", sub])
     if not ya_hecho(sub):
-        raise RuntimeError("el pipeline no genero rasgos.csv (ver el error mas arriba)")
-
-
-def copiar_resultados(sub):
-    """Copia los CSV livianos a <repo>/resultados/ para compartir por git."""
-    destino = Path(__file__).resolve().parents[2] / "resultados" / sub
-    destino.mkdir(parents=True, exist_ok=True)
-    for clave in ("rasgos", "rechazo"):
-        if rutas(sub)[clave].exists():
-            shutil.copy2(rutas(sub)[clave], destino / rutas(sub)[clave].name)
+        raise RuntimeError("la segmentacion no genero el -epo.fif (ver el error mas arriba)")
 
 
 def anotar(fila):
@@ -124,7 +111,6 @@ def correr_sujeto(sub, borrar=True, simular=False):
             print(f"  aviso: {sub} tiene {n} sesiones (se esperaban 6)")
         print("  procesando...")
         procesar(sub)
-        copiar_resultados(sub)
         if borrar:
             shutil.rmtree(rutas(sub)["crudo"], ignore_errors=True)
             print(f"  crudo borrado: {rutas(sub)['crudo']}")
