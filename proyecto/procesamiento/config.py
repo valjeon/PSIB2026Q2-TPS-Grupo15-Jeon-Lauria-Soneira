@@ -74,6 +74,12 @@ VENTANA_VEO = (-0.2, 0.8)           # s; parpadeo en esta ventana (N2/P2) -> la 
 UMBRAL_VEO_UV = 100                 # pico a pico maximo de VEO en VENTANA_VEO
 UMBRAL_RECHAZO_UV = 100             # pico a pico maximo en cualquier canal EEG (epoca completa)
 
-# --- Inclusion de sujetos (pipeline.py) ---
+# --- Inclusion de sujetos (inclusion.py) ---
 MIN_EPOCAS_LIMPIAS = 10             # epocas limpias minimas por nivel de NIVELES_MINIMOS
 NIVELES_MINIMOS = ("E1", "E4")      # niveles que se comparan en la clasificacion
+EPOCAS_ESPERADAS = 80               # base para el % de perdidas: las faltantes cuentan como perdidas
+MAX_PCT_EPOCAS_PERDIDAS = 25        # > 25% perdidas (autores + groseras + rechazo) -> se excluye 
+MAX_PCT_CANALES_INTERPOLADOS = 25   # > 25% de canales EEG interpolados -> se excluye
+CANALES_ROI = ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"]   # ROI a priori: Cz y sus vecinos (no hay FCz)
+MAX_ROI_INTERPOLADOS = 2            # mas de 2 canales de la ROI interpolados -> se excluye
+# Cz interpolado -> se excluye siempre (criterio 4); sin canal VEO -> se excluye
