@@ -80,7 +80,7 @@ def evaluar(ep, excluir=()):
 
 def figura_canal(ep, canal, sub, fila):
     """Ensayo por ensayo del canal (pre y post estimulo) para la revision a mano."""
-    figs = ep.plot_image(picks=canal, show=False, colorbar=True, evoked=True, verbose="ERROR",
+    figs = ep.plot_image(picks=canal, show=False, colorbar=True, evoked=True,
                          title=f"{sub} {canal}: {fila['decision']} (z={fila['z_tipico']}, "
                                f"{fila['pct_epocas_atipicas']:.0f}% epocas atipicas)")
     return figs[0]

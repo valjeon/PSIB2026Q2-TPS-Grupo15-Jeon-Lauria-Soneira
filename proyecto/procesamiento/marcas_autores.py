@@ -42,6 +42,14 @@ def _lista(texto):
     """'33 70 72' -> ['33', '70', '72'];  '\\' o vacio -> []."""
     return [x for x in texto.replace(",", " ").split() if x != "\\"]
 
+_CANONICOS = None
+
+def _normalizar(nombre):
+    """'Tp7' -> 'TP7': el CSV no respeta las mayusculas del montaje 10-05."""
+    global _CANONICOS
+    if _CANONICOS is None:
+        _CANONICOS = {c.lower(): c for c in mne.channels.make_standard_montage("standard_1005").ch_names}
+    return _CANONICOS.get(nombre.lower(), nombre)
 
 def leer_marcas(ruta_csv=None, experimento=EXPERIMENTO):
     """{'sub-010': Marcas(...), ...} para todos los sujetos del experimento.
@@ -69,12 +77,11 @@ def leer_marcas(ruta_csv=None, experimento=EXPERIMENTO):
             continue
         sub = f"sub-{int(fila[c_sub]):03d}"
         marcas[sub] = Marcas(epocas={int(x) - 1 for x in _lista(fila[c_ep]) if x.isdigit()},
-                             electrodos=_lista(fila[c_el]))
+                             electrodos=[_normalizar(c) for c in _lista(fila[c_el])])
     return marcas
 
 
 _CACHE = {}
-
 
 def marcas_de(sub, ruta_csv=None):
     """Marcas de un sujeto (vacias si no esta en el CSV). El CSV se lee una sola vez."""

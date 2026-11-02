@@ -82,4 +82,6 @@ MAX_PCT_EPOCAS_PERDIDAS = 25        # > 25% perdidas (autores + groseras + recha
 MAX_PCT_CANALES_INTERPOLADOS = 25   # > 25% de canales EEG interpolados -> se excluye
 CANALES_ROI = ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"]   # ROI a priori: Cz y sus vecinos (no hay FCz)
 MAX_ROI_INTERPOLADOS = 2            # mas de 2 canales de la ROI interpolados -> se excluye
+FRACCION_VENTANA = 0.5              # ventanas de N2/P2: ancho a media altura en el gran promedio colapsado (localizador.py)
 # Cz interpolado -> se excluye siempre (criterio 4); sin canal VEO -> se excluye
+# sujetos con != EPOCAS_ESPERADAS epocas segmentadas (descarga completa) -> se excluyen: no se pueden alinear las marcas de los autores

@@ -55,6 +55,7 @@ def criterios_previos(fila, ep):
     roi_interp = [c for c in interp if c in CANALES_ROI]
     pct_interp = round(100 * len(interp) / n_eeg, 1)
     out = {
+        "c0_completo_ok": int(fila["segmentadas"]) == EPOCAS_ESPERADAS,
         "canales_interpolados": len(interp),
         "pct_canales_interpolados": pct_interp,
         "c2_canales_ok": pct_interp <= MAX_PCT_CANALES_INTERPOLADOS,
@@ -69,6 +70,8 @@ def criterios_previos(fila, ep):
         motivos.append(f"ROI interpolada: {' '.join(roi_interp)}")
     if not out["c5_veo_ok"]:
         motivos.append("sin canal VEO")
+    if not out["c0_completo_ok"]:
+        motivos.append(f"{int(fila['segmentadas'])} epocas segmentadas (se esperaban {EPOCAS_ESPERADAS})")
     return out, motivos
 
 
