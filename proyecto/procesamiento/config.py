@@ -71,8 +71,9 @@ VENTANAS_BETA_VEO = [(-1.0, 0.0), (1.0, 2.0)]   # s; tramos sin LEP donde se est
 # --- Rechazo (artefactos.py, a revisar) --------------------------------------
 # Pico a pico medido sobre una copia con pasa-bajos de 30 Hz (banda de los LEPs).
 VENTANA_VEO = (-0.2, 0.8)           # s; parpadeo en esta ventana (N2/P2) -> la epoca se descarta
-UMBRAL_VEO_UV = 100                 # pico a pico maximo de VEO en VENTANA_VEO
-UMBRAL_RECHAZO_UV = 100             # pico a pico maximo en cualquier canal EEG (epoca completa)
+UMBRAL_VEO_UV = 150                 # pico a pico max del VEO de -1 s al fin de la ventana de P2 (umbrales_rechazo.py)
+UMBRAL_RECHAZO_UV = 100             # pico a pico max en los canales de la ROI, mismo tramo
+UMBRALES_VEO_SENSIBILIDAD = [200, None]   # analisis de sensibilidad (None = sin rechazo por VEO)
 
 # --- Inclusion de sujetos (inclusion.py) ---
 MIN_EPOCAS_LIMPIAS = 10             # epocas limpias minimas por nivel de NIVELES_MINIMOS
