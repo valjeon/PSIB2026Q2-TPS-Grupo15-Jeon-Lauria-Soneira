@@ -150,7 +150,7 @@ def r2_veo(ep, canales=("Fp1", "Fp2", "AF7", "AF8"), ventanas=None):
     return round(float(np.median(r2)), 1)
 
 
-def para_analisis(sub, regresion=None, carpeta=None, ref_sin_frontales=None):
+def para_analisis(sub, regresion=None, carpeta=None, ref_sin_frontales=None, pasa_bajos=True):
     """Epocas preprocesadas listas para mirar/medir: [regresion VEO] -> ref. promedio [sin Fp/AF] -> 30 Hz -> linea de base."""
     regresion = config.REGRESION_VEO if regresion is None else regresion
     ref_sin_frontales = config.REF_SIN_FRONTALES if ref_sin_frontales is None else ref_sin_frontales
@@ -164,7 +164,8 @@ def para_analisis(sub, regresion=None, carpeta=None, ref_sin_frontales=None):
         v = ep.copy().set_eeg_reference(ref, projection=False, verbose="ERROR")
     else:
         v = artefactos.con_referencia_promedio(ep)
-    v = v.filter(None, config.PASA_BAJOS_LEP_HZ, picks="eeg", verbose="ERROR")
+    if pasa_bajos:
+        v = v.filter(None, config.PASA_BAJOS_LEP_HZ, picks="eeg", verbose="ERROR")
     return v.apply_baseline(config.BASELINE, verbose="ERROR"), beta
 
 
