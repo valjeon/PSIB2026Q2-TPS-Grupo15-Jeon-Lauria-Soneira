@@ -1,7 +1,7 @@
 """Localizador colapsado (Luck & Gaspelin 2017): ROI y latencias de N2/P2 sin mirar la diferencia entre niveles.
 
-Sujetos: los incluidos por la limpieza (limpieza_resumen.csv).
-Por sujeto: epocas limpias leidas con limpieza.para_analisis (ref. sin frontales, 30 Hz, linea de base),
+Sujetos: los incluidos en la etapa previa (inclusion_previa.csv).
+Por sujeto: epocas preprocesadas leidas con limpieza.para_analisis (ref. sin frontales, 30 Hz, linea de base),
     promedio ponderado por 1/varianza del ruido pre-estímulo (inhomogéneo, caso 2) en cada nivel -> ERP colapsado.
 Grupo: promedio de los ERP colapsados (cada sujeto pesa igual).
 
@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 
-from procesamiento import config, limpieza
+from procesamiento import config, inclusion, limpieza
 
 CANALES_ROI = getattr(config, "CANALES_ROI", ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"])
 MEDIA_PICO_S = getattr(config, "MEDIA_PICO_S", 0.02)        # +-20 ms alrededor de cada pico
@@ -48,7 +48,7 @@ def promedio_ponderado(x, t):
 
 def erp_colapsado(sub):
     """ERP del sujeto: promedio ponderado por 1/varianza del ruido pre-estímulo (inhomogéneo, caso 2) en cada nivel."""
-    v = limpieza.para_analisis(sub)
+    v, _ = limpieza.para_analisis(sub)
     v = v.copy().pick("eeg")
     cond = v.metadata["condicion"].to_numpy()
     promedios = [promedio_ponderado(v.get_data()[cond == c], v.times) for c in config.NIVELES if (cond == c).any()]
@@ -169,7 +169,7 @@ def correr(sujetos=None, carpeta=None):
     carpeta = Path(config.CARPETA_SALIDA if carpeta is None else carpeta)
     salida = carpeta / "localizador"
     salida.mkdir(parents=True, exist_ok=True)
-    sujetos = sujetos or limpieza.incluidos(carpeta)
+    sujetos = sujetos or inclusion.incluidos("previa", carpeta)
     print(f"Localizador con {len(sujetos)} sujetos (referencia sin frontales: {config.REF_SIN_FRONTALES})")
 
     erps = {}

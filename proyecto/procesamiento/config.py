@@ -28,6 +28,7 @@ CANAL_EOG = "VEO"                                    # ojo vertical: se usa para
 CODIGOS_LASER = {32: 1, 33: 2, 34: 3, 35: 4}         # codigo del trigger -> nivel E1..E4
 CODIGO_CONFIRMACION = 100
 NIVELES = {"E1": 1, "E2": 2, "E3": 3, "E4": 4}
+PULSOS_POR_NIVEL = 20
 EPOCAS_ESPERADAS = 80                                # 20 pulsos por nivel
 
 # --- Filtros (filtrado.py) ------------------------------------------------------------------------------
@@ -46,15 +47,28 @@ SFREQ_GUARDADO = 250                                 # Hz; se remuestrea antes d
 CANALES_ROI = ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"]   # ROI (csoneira): Cz y vecinos (no hay FCz)
 CANAL_QC = "Cz"                                      # vertex: donde se buscan las latencias de N2 y P2
 CANALES_SIN_CRITERIO_EEG = ["Fp1", "Fpz", "Fp2", "AF7", "AF3", "AF4", "AF8"]   # frontopolares: amplitud ocular
+REF_SIN_FRONTALES = True                             # referencia promedio sin los frontopolares (limpieza.py)
 VENTANA_N2 = (0.12, 0.30)                            # s; donde se busca el minimo
-VENTANA_P2 = (0.25, 0.50)                            # s; donde se busca el maximo (su fin cierra el tramo de rechazo)
+VENTANA_P2 = (0.25, 0.50)                            # s; donde se busca el maximo
+# Localizador (localizador.py)
+FRACCION_VENTANA = 0.5                               # ventanas de N2/P2: ancho a media altura en el gran promedio
+MEDIA_PICO_S = 0.02                                  # +-20 ms alrededor de cada pico, para la medida por canal
+FRACCION_ROI_DATOS = 0.8                             # ROI que sale de los datos: canales con >= 80% del maximo
 
-# --- Limpieza (limpieza.py) -----------------------------------------------------------------------------
+# --- Limpieza (limpieza.py) y rechazo final (medicion.py) -----------------------------------------------------------------------------
 Z_CANAL_MALO = 5.0                                   # z robusto del pico a pico pre-estimulo para un canal ruidoso
 FRAC_EPOCAS_CANAL_MALO = 0.5                         # ...y atipico en mas de esta fraccion de las epocas
 FACTOR_CANAL_PLANO = 0.1                             # pico a pico tipico < 0.1 x la mediana -> canal plano
 MAX_ROI_INTERPOLADOS = 2                             # Cz interpolado, o mas de 2 de la ROI -> ROI comprometida
 UMBRAL_GROSERO_UV = 300                              # pico a pico en la cabeza (sin frontopolares) -> grosera
 VENTANA_GROSERO = (-1.0, 1.0)                        # s; tramo de las groseras
-UMBRAL_RECHAZO_UV = 100                              # pico a pico en la ROI, de -1 s al fin de VENTANA_P2
-UMBRAL_VEO_UV = 150                                  # pico a pico del VEO, mismo tramo
+# Rechazo final (medicion.py): de -1 s al fin de la ventana de P2 que sale del localizador
+UMBRAL_RECHAZO_UV = 100                              # pico a pico maximo en los canales de la ROI
+UMBRAL_VEO_UV = 150                                  # pico a pico maximo del VEO (variante principal)
+UMBRALES_VEO_SENSIBILIDAD = [200, None]              # variantes de sensibilidad (None = sin rechazo por VEO)
+
+# --- Inclusion de sujetos (inclusion.py) -------------------------------------------------------------------
+MAX_PCT_EPOCAS_PERDIDAS = 25                         # > 25% de las 80 perdidas (todas las causas) -> se excluye
+MAX_PCT_CANALES_INTERPOLADOS = 25                    # > 25% de los canales EEG malos (autores + propios) -> se excluye
+MIN_EPOCAS_LIMPIAS = 10                              # minimo de epocas limpias en cada nivel de NIVELES_MINIMOS
+NIVELES_MINIMOS = ("E1", "E4")                       # los niveles que se comparan

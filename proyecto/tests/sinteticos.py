@@ -4,6 +4,7 @@ Cada sujeto: 6 sesiones, 80 pulsos (20 por nivel, orden al azar), triggers S 3x 
     - LEP (N2 a 220 ms, P2 a 380 ms) en la ROI, con amplitud proporcional al nivel
     - ruido blanco de 4 uV en todos los canales y 20 uV de red a 50 Hz
     - parpadeos (300 uV en el VEO a +0.3 s, la mitad en Fp1/Fp2) en los ensayos PARPADEOS
+    - parpadeos espontaneos (200 uV en el VEO, la mitad en Fp1/Fp2) 0.6 s antes de uno de cada tres pulsos
     - O2 muy ruidoso (canal malo propio); un salto de 500 uV en Pz en el ensayo GROSERO
 """
 import numpy as np
@@ -24,7 +25,7 @@ def forma_lep(t):
     return -np.exp(-((t - 0.22) / 0.03) ** 2) + 1.5 * np.exp(-((t - 0.38) / 0.05) ** 2)
 
 
-def escribir_sujeto(raiz, sub, semilla=0, amplitud_uV=5.0):
+def escribir_sujeto(raiz, sub, semilla=0, amplitud_uV=5.0, espontaneos=True):
     import pybv
     rng = np.random.default_rng(semilla)
     niveles = rng.permutation(np.repeat([1, 2, 3, 4], 20))
@@ -45,6 +46,11 @@ def escribir_sujeto(raiz, sub, semilla=0, amplitud_uV=5.0):
                 x[CANALES.index(c), cerca] += nivel * amplitud_uV * 1e-6 * w * forma_lep(tt[cerca])
             if ensayo in PARPADEOS:
                 b = 300e-6 * np.exp(-((tt[cerca] - 0.3) / 0.08) ** 2)
+                x[CANALES.index("VEO"), cerca] += b
+                for c in ("Fp1", "Fp2"):
+                    x[CANALES.index(c), cerca] += 0.5 * b
+            if espontaneos and i % 3 == 0:               # parpadeo espontaneo 0.6 s antes del pulso
+                b = 200e-6 * np.exp(-((tt[cerca] + 0.6) / 0.08) ** 2)
                 x[CANALES.index("VEO"), cerca] += b
                 for c in ("Fp1", "Fp2"):
                     x[CANALES.index(c), cerca] += 0.5 * b

@@ -1,4 +1,5 @@
-"""Paso 3: limpieza de las epocas
+"""Paso 3: limpieza de las epocas, sin ICA (lo pide la consigna) y sin mirar el nivel de intensidad.
+
 Ocupa el lugar de preprocesado.py (csoneira): deja las epocas listas para la etapa de grupo, que hace el
 rechazo final por ROI y VEO (medicion.py, con sus variantes de sensibilidad). En orden (limpiar_sujeto):
     1. aplicar_marcas    marcas manuales de los autores: saca sus epocas malas y marca sus electrodos malos

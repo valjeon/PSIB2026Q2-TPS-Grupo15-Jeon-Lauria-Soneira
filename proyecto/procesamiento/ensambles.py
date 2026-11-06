@@ -1,7 +1,7 @@
 """Promedios por ensamble: por sujeto y nivel, y gran promedio por nivel.
 
-Sujetos: los incluidos por la limpieza (limpieza_resumen.csv). Epocas: sub-XXX_limpias-epo.fif leidas con
-limpieza.para_analisis (ref. sin frontales, 30 Hz y linea de base; sin las rechazadas).
+Sujetos: los incluidos en la etapa final (inclusion_final.csv). Epocas: sub-XXX_finales-epo.fif (ya con ref.
+sin frontales, 30 Hz y linea de base; sin las rechazadas).
 
 1. Ensamble por sujeto y nivel: promedio INHOMOGENEO, caso 2 (varianza del ruido variable): cada epoca pesa
    1/sigma_i^2, con sigma_i^2 estimada en el pre-estimulo (localizador.promedio_ponderado).
@@ -24,10 +24,13 @@ import mne
 import numpy as np
 import pandas as pd
 
-from procesamiento import config, limpieza, localizador
+from procesamiento import config, inclusion, localizador
 
 CANALES_ROI = getattr(config, "CANALES_ROI", ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"])
 MEDIDAS = ["N2_uV", "P2_uV", "N2P2_uV", "lat_N2_ms", "lat_P2_ms"]
+
+
+COLORES = {"E1": "#9ecae1", "E2": "#4292c6", "E3": "#ef6548", "E4": "#b30000"}   # (era qc.COLORES)
 
 
 def _con_posicion(inst):
@@ -71,7 +74,7 @@ def snr_par_impar(x, t, ventanas, picks_roi):
 
 
 def ensambles_sujeto(sub, ventanas, carpeta):
-    ep = limpieza.para_analisis(sub, carpeta).pick("eeg")
+    ep = mne.read_epochs(inclusion.ruta_finales(sub, carpeta), verbose="ERROR").pick("eeg")
     t, info = ep.times, ep.info
     picks_roi = [ep.ch_names.index(c) for c in CANALES_ROI if c in ep.ch_names]
     cond = ep.metadata["condicion"].to_numpy()
@@ -90,7 +93,7 @@ def ensambles_sujeto(sub, ventanas, carpeta):
 def fig_erp_niveles(evs, titulo, ventanas):
     fig, ax = plt.subplots(figsize=(8, 4))
     for c, e in evs.items():
-        ax.plot(e.times * 1000, _roi(e), color=limpieza.COLORES[c], lw=1.8, label=f"{c} (n={e.nave})")
+        ax.plot(e.times * 1000, _roi(e), color=COLORES[c], lw=1.8, label=f"{c} (n={e.nave})")
     for (a, b) in ventanas.values():
         ax.axvspan(a * 1000, b * 1000, color="0.92", zorder=0)
     ax.axvline(0, color="k", lw=0.6)
@@ -126,7 +129,7 @@ def fig_topomapas(gas, ventanas):
 
 def correr(sujetos=None, carpeta=None):
     carpeta = Path(config.CARPETA_SALIDA if carpeta is None else carpeta)
-    sujetos = sujetos or limpieza.incluidos(carpeta)
+    sujetos = sujetos or inclusion.incluidos("final", carpeta)
     ventanas = localizador.leer_ventanas(carpeta)
     salida = carpeta / "ensambles"
     (salida / "sujetos").mkdir(parents=True, exist_ok=True)

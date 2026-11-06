@@ -1,6 +1,8 @@
 """Paso 2: extraccion de epocas, como en el paper.
-Por cada sesion, leer (analisis.py), obtiene pulsos, filtrar la senal continua (filtrado.py) 
-Despues se juntan las 6 sesiones, se remuestrea a 250 Hz y se guarda.
+
+Por sesion: leer (analisis.py) -> pulsos -> filtrar la senal continua (filtrado.py) -> epocas de -1000 a 2000 ms
+con linea de base -1000 a 0 ms. Despues se juntan las seis sesiones, se remuestrea a 250 Hz y se guarda.
+No se rechaza ni se re-referencia nada: eso es la limpieza, un paso aparte.
 """
 from pathlib import Path
 
@@ -10,6 +12,7 @@ import pandas as pd
 
 from procesamiento import analisis, config, filtrado
 
+
 def metadata_sesion(raw, ev, sub, ses):
     """Una fila por pulso: sujeto, sesion, nivel (1-4), condicion (E1-E4) y momento del pulso en la sesion (s)."""
     nombre = {v: k for k, v in config.NIVELES.items()}
@@ -17,11 +20,13 @@ def metadata_sesion(raw, ev, sub, ses):
                          "condicion": [nombre[n] for n in ev[:, 2]],
                          "onset_s": (ev[:, 0] - raw.first_samp) / raw.info["sfreq"]})
 
+
 def epocas_sesion(filt, ev, metadata):
     """Epocas de una sesion ya filtrada: de TMIN a TMAX, con linea de base BASELINE."""
     return mne.Epochs(filt, ev, event_id=config.NIVELES, tmin=config.TMIN, tmax=config.TMAX,
                       baseline=config.BASELINE, metadata=metadata, reject=None, preload=True,
                       on_missing="ignore", verbose="ERROR")
+
 
 def extraer_sujeto(sub, raiz=None):
     """Todas las sesiones del sujeto -> un solo Epochs (1-100 Hz, notch, referencia original, 250 Hz)."""
@@ -36,7 +41,6 @@ def extraer_sujeto(sub, raiz=None):
             print(f"  {sub} {ses}: {len(ev) - len(ep)} pulsos sin ventana completa (borde del archivo)")
         lista.append(ep)
         del raw, filt
-        
     if not lista:
         raise RuntimeError(f"{sub}: ninguna sesion tuvo pulsos laser")
     ep = lista[0] if len(lista) == 1 else mne.concatenate_epochs(lista, verbose="ERROR")
@@ -46,6 +50,7 @@ def extraer_sujeto(sub, raiz=None):
         # remuestrear corre un poco la media del pre-estimulo: se vuelve a aplicar la linea de base
         ep = ep.resample(config.SFREQ_GUARDADO, verbose="ERROR").apply_baseline(config.BASELINE, verbose="ERROR")
     return ep
+
 
 def ruta_epocas(sub, carpeta=None):
     """derived_mine/sub-XXX/sub-XXX_laser-epo.fif (el mismo nombre que usaba el pipeline anterior)."""
@@ -68,9 +73,10 @@ def resumen(ep, sub):
             **{c: int(por_nivel.get(c, 0)) for c in config.NIVELES},
             "completo": len(ep) == config.EPOCAS_ESPERADAS}
 
-def guardar_resumen(filas, carpeta=None):
-    """Escribe derived_mine/epocas_resumen.csv con una fila por sujeto, conservando los de corridas anteriores."""
-    destino = Path(config.CARPETA_SALIDA if carpeta is None else carpeta) / "epocas_resumen.csv"
+
+def guardar_resumen(filas, nombre="epocas_resumen.csv", carpeta=None):
+    """Escribe derived_mine/<nombre> con una fila por sujeto, conservando los de corridas anteriores."""
+    destino = Path(config.CARPETA_SALIDA if carpeta is None else carpeta) / nombre
     nuevo = pd.DataFrame(filas)
     if destino.exists():
         viejo = pd.read_csv(destino)
