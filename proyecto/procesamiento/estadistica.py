@@ -6,33 +6,29 @@ Rasgos: PRINCIPAL (N2-P2) + SECUNDARIOS + CONTROL (ver abajo).
 1. Spearman (todos los niveles): por sujeto, rho entre el nivel (1-4) y el rasgo de cada ensayo.
    Grupo: Wilcoxon de una muestra sobre los rho de los sujetos (bilateral: rho distinto de 0).
    Signo esperado: N2-P2, P2, gamma > 0; N2 (mas negativa) y latencia de N2 (mas corta) < 0.
-2. AUROC E1 vs E4, dejando un sujeto afuera: regresion logistica entrenada con los ensayos E1/E4 de los demas
-   sujetos y probada en el que quedo afuera -> un AUROC por sujeto y por rasgo, mas un modelo combinado
-   (rasgos de COMBINADO; sin N2-P2, que es P2 - N2, ni el control).
+2. AUROC E1 vs E4 directo, por sujeto: probabilidad de que un ensayo de E4 tenga un valor mayor que uno de E1
+   en el sentido esperado (SIGNO), es decir el U de Mann-Whitney normalizado. No se ajusta nada con los datos:
+   el sentido se fija a priori, asi que el resultado de cada sujeto ya es el de un sujeto nuevo.
    Grupo: Wilcoxon de una muestra (AUROC > 0.5) y bootstrap de los sujetos (IC 95% del AUROC medio).
 
 Salida en derived_mine/estadistica/<variante>/: spearman_sujetos.csv, auroc_sujetos.csv, resumen.csv, figuras.
 
 Lo llama pipeline.py en la etapa de grupo (python -m procesamiento.pipeline --grupo).
 """
-import warnings
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr, wilcoxon
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 
 from procesamiento import config, medicion
 
 PRINCIPAL = "N2P2_uV"
 SECUNDARIOS = ["N2_uV", "P2_uV", "lat_N2_ms", "gamma_ERS_dB"]
 CONTROL = []
-COMBINADO = ["N2_uV", "P2_uV", "lat_N2_ms", "gamma_ERS_dB"]
+SIGNO = {"N2P2_uV": 1, "N2_uV": -1, "P2_uV": 1, "lat_N2_ms": -1, "gamma_ERS_dB": 1}   # sentido esperado con la intensidad
 NIVELES_AUROC = ("E1", "E4")
 N_BOOTSTRAP = 2000
 SEMILLA = 0
@@ -59,32 +55,23 @@ def spearman_sujetos(d, rasgos):
 
 
 # ---------------------------------------------------------------------------
-# AUROC dejando un sujeto afuera
+# AUROC directo por sujeto
 # ---------------------------------------------------------------------------
 
-def _modelo():
-    return make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
-
-
-def auroc_sujetos(d, conjuntos):
-    """{nombre: [columnas]} -> DataFrame con un AUROC por sujeto (fila) y conjunto de rasgos (columna)."""
+def auroc_sujetos(d, rasgos):
+    """DataFrame con un AUROC E1 vs E4 por sujeto (fila) y rasgo (columna), con el rasgo multiplicado por su
+    SIGNO como puntaje (U de Mann-Whitney normalizado; 0.5 = no discrimina)."""
     e = d[d["condicion"].isin(NIVELES_AUROC)]
-    y = (e["condicion"] == NIVELES_AUROC[1]).to_numpy().astype(int)
-    sujetos = e["sujeto"].to_numpy()
-    out = {"sujeto": sorted(set(sujetos))}
-    for nombre, cols in conjuntos.items():
-        x = e[cols].to_numpy()
-        valido = ~np.isnan(x).any(axis=1)
-        aucs = []
-        for s in out["sujeto"]:
-            te, tr = (sujetos == s) & valido, (sujetos != s) & valido
-            if len(set(y[te])) < 2:
-                aucs.append(np.nan)
-                continue
-            m = _modelo().fit(x[tr], y[tr])
-            aucs.append(roc_auc_score(y[te], m.predict_proba(x[te])[:, 1]))
-        out[nombre] = aucs
-    return pd.DataFrame(out)
+    filas = []
+    for sub, g in e.groupby("sujeto"):
+        y = (g["condicion"] == NIVELES_AUROC[1]).to_numpy().astype(int)
+        fila = {"sujeto": sub}
+        for r in rasgos:
+            ok = g[r].notna().to_numpy()
+            fila[r] = (roc_auc_score(y[ok], SIGNO.get(r, 1) * g[r].to_numpy()[ok])
+                       if len(set(y[ok])) == 2 else np.nan)
+        filas.append(fila)
+    return pd.DataFrame(filas)
 
 
 def bootstrap_media(valores, n=N_BOOTSTRAP, semilla=SEMILLA):
@@ -102,8 +89,8 @@ def bootstrap_media(valores, n=N_BOOTSTRAP, semilla=SEMILLA):
 
 def resumir(rho, auc, rasgos):
     filas = []
-    for r in list(rasgos) + ["combinado"]:
-        f = {"rasgo": r, "rol": "combinado" if r == "combinado" else rol(r)}
+    for r in rasgos:
+        f = {"rasgo": r, "rol": rol(r)}
         if r in rho:
             v = rho[r].dropna()
             f.update(rho_mediana=round(v.median(), 3), rho_n_positivos=f"{int((v > 0).sum())}/{len(v)}",
@@ -127,7 +114,7 @@ def figura(rho, auc, rasgos, variante):
     a1.set_xticks(range(len(rasgos)), rasgos, rotation=35, ha="right")
     a1.set_ylabel("rho de Spearman (por sujeto)")
     a1.set_title("Relacion con el nivel (E1-E4); linea: mediana")
-    cols = list(rasgos) + ["combinado"]
+    cols = list(rasgos)
     for i, r in enumerate(cols):
         a = auc[r].dropna()
         ic = bootstrap_media(a)
@@ -136,7 +123,7 @@ def figura(rho, auc, rasgos, variante):
                    alpha=0.4, color="tab:blue")
     a2.axhline(0.5, color="0.5", lw=0.8, ls="--")
     a2.set_xticks(range(len(cols)), cols, rotation=35, ha="right")
-    a2.set_ylabel("AUROC E1 vs E4 (sujeto afuera)")
+    a2.set_ylabel("AUROC E1 vs E4 (por sujeto)")
     a2.set_title("Discriminacion; negro: media e IC 95% bootstrap")
     fig.suptitle(f"Variante {variante}")
     fig.tight_layout()
@@ -151,16 +138,10 @@ def correr(variante=None, carpeta=None):
     faltan = [r for r in [PRINCIPAL] + SECUNDARIOS + CONTROL if r not in d]
     if faltan:
         print(f"Aviso: faltan rasgos {faltan} (los agrega rasgos_ensayo.py en la etapa de grupo)")
-    conjuntos = {r: [r] for r in rasgos}
-    comb = [c for c in COMBINADO if c in d]
-    if comb:
-        conjuntos["combinado"] = comb
     print(f"Variante {variante}: {d['sujeto'].nunique()} sujetos, {len(d)} ensayos")
 
     rho = spearman_sujetos(d, rasgos)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        auc = auroc_sujetos(d, conjuntos)
+    auc = auroc_sujetos(d, rasgos)
     resumen = resumir(rho, auc, rasgos)
 
     salida = carpeta / "estadistica" / variante
