@@ -67,6 +67,12 @@ UMBRAL_RECHAZO_UV = 100                              # pico a pico maximo en los
 UMBRAL_VEO_UV = 150                                  # pico a pico maximo del VEO (variante principal)
 UMBRALES_VEO_SENSIBILIDAD = [200, None]              # variantes de sensibilidad (None = sin rechazo por VEO)
 
+# --- Estimulo y puntaje por ensayo (medicion.agregar_estimulo, estadistica.cruces) ---------------------------
+# CSV de los autores con la energia (J) y el puntaje de dolor (NRS 0-10) de cada ensayo, en la raiz del repo
+# (github.com/XiangyueZhao/Supplement-Data, CSV/participants_singletrial_95ByBP .csv).
+RUTA_RATINGS = RAIZ_DATOS.parent.parent / "participants_singletrial_95ByBP.csv"
+NRS_ESPERADO = {"E1": 2, "E2": 4, "E3": 6, "E4": 8}    # puntaje buscado por diseño (README del dataset)
+
 # --- Inclusion de sujetos (inclusion.py) -------------------------------------------------------------------
 MAX_PCT_EPOCAS_PERDIDAS = 25                         # > 25% de las 80 perdidas (todas las causas) -> se excluye
 MAX_PCT_CANALES_INTERPOLADOS = 25                    # > 25% de los canales EEG malos (autores + propios) -> se excluye

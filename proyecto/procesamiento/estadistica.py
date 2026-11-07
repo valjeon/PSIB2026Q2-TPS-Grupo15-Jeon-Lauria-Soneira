@@ -130,6 +130,105 @@ def figura(rho, auc, rasgos, variante):
     return fig
 
 
+# ---------------------------------------------------------------------------
+# Cruces con el estimulo (J) y el puntaje de dolor (NRS) por ensayo
+# ---------------------------------------------------------------------------
+
+def _rho(x, y):
+    """Spearman entre dos columnas, ignorando faltantes; NaN si hay pocos datos o una columna es constante."""
+    ok = x.notna() & y.notna()
+    if ok.sum() < 5 or x[ok].nunique() < 2 or y[ok].nunique() < 2:
+        return np.nan
+    return spearmanr(x[ok], y[ok])[0]
+
+
+def cruces_sujetos(d, rasgos):
+    """Una fila por sujeto con los rho de los tres cruces de la consigna."""
+    filas = []
+    for sub, g in d.groupby("sujeto"):
+        nivel = g["condicion"].map(config.NIVELES)
+        f = {"sujeto": sub,
+             "nivel_vs_VEO": _rho(nivel, g["ptp_veo_uV"]),       # a) intensidad vs otra medida fisiologica
+             "nivel_vs_rating": _rho(nivel, g["rating"])}        # b) dolor esperado vs informado
+        for r in rasgos:                                         # c) percepcion vs senal
+            f[f"rating_vs_{r}"] = _rho(g["rating"], g[r])        #    con todos los ensayos
+            # dentro de cada nivel (mismo estimulo) y promediado: si el rasgo sigue a lo que se siente
+            f[f"rating_vs_{r}_intra"] = np.nanmean([_rho(h["rating"], h[r]) for _, h in g.groupby("condicion")]
+                                                   or [np.nan])
+        filas.append(f)
+    return pd.DataFrame(filas)
+
+
+def resumir_cruces(t):
+    """Por cruce: mediana de los rho, cuantos sujetos dan positivo y Wilcoxon de grupo (rho distinto de 0)."""
+    filas = []
+    for c in t.columns.drop("sujeto"):
+        v = t[c].dropna()
+        filas.append({"cruce": c, "n": len(v), "rho_mediana": round(v.median(), 3),
+                      "n_positivos": f"{int((v > 0).sum())}/{len(v)}",
+                      "p_wilcoxon": wilcoxon(v).pvalue if len(v) >= 6 else np.nan})
+    return pd.DataFrame(filas)
+
+
+def tablas_estimulo(d, rasgos):
+    """Puntaje y rasgos medios por nivel (con el NRS buscado) y por energia en J (media de las medias de cada
+    sujeto, para que cada sujeto pese igual)."""
+    cols = ["rating"] + rasgos
+    por_sujeto = d.groupby(["sujeto", "condicion"])[cols].mean()
+    por_nivel = por_sujeto.groupby("condicion").median().round(2)
+    por_nivel.insert(0, "rating_esperado", [config.NRS_ESPERADO.get(c) for c in por_nivel.index])
+    por_j = d.groupby(["sujeto", "laser_J"])[cols].mean().groupby("laser_J").agg(["mean", "count"])
+    por_j = por_j.loc[:, [(c, "mean") for c in cols] + [("rating", "count")]].round(2)
+    por_j.columns = cols + ["n_sujetos"]
+    return por_nivel, por_j
+
+
+def figura_cruces(por_nivel, cruces, rasgos, variante):
+    """Izquierda: dolor buscado vs informado por nivel. Derecha: rho puntaje-rasgo por sujeto."""
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.5))
+    x = range(len(por_nivel))
+    a1.plot(x, por_nivel["rating_esperado"], "o--", color="0.5", label="buscado (diseno)")
+    a1.plot(x, por_nivel["rating"], "o-", color="k", label="informado (mediana de sujetos)")
+    a1.set_xticks(x, por_nivel.index)
+    a1.set_ylabel("Puntaje de dolor (NRS 0-10)")
+    a1.set_title("Dolor esperado vs informado")
+    a1.legend()
+    cols = [f"rating_vs_{r}" for r in rasgos] + [f"rating_vs_{r}_intra" for r in rasgos]
+    for i, c in enumerate(cols):
+        v = cruces[c].dropna()
+        a2.scatter(np.full(len(v), i) + np.random.default_rng(i).uniform(-0.15, 0.15, len(v)), v, s=10, alpha=0.5)
+        a2.hlines(v.median(), i - 0.3, i + 0.3, color="k", lw=2)
+    a2.axhline(0, color="0.5", lw=0.8)
+    a2.axvline(len(rasgos) - 0.5, color="0.8", lw=0.8)
+    a2.set_xticks(range(len(cols)), [c.replace("rating_vs_", "") for c in cols], rotation=40, ha="right")
+    a2.set_ylabel("rho puntaje-rasgo (por sujeto)")
+    a2.set_title("Percepcion vs senal: todos los ensayos | dentro de cada nivel")
+    fig.suptitle(f"Variante {variante}")
+    fig.tight_layout()
+    return fig
+
+
+def cruces(d, rasgos, salida, variante):
+    """Corre los tres cruces si hay puntajes; guarda los CSV y la figura en la carpeta de la variante."""
+    if "rating" not in d or d["rating"].notna().sum() == 0:
+        print("Sin puntajes por ensayo (falta config.RUTA_RATINGS): no se hacen los cruces")
+        return None
+    d = d[d["rating"].notna()]                                   # solo ensayos con puntaje
+    t = cruces_sujetos(d, rasgos)
+    res = resumir_cruces(t)
+    por_nivel, por_j = tablas_estimulo(d, rasgos)
+    t.to_csv(salida / "cruces_sujetos.csv", index=False)
+    res.to_csv(salida / "cruces_resumen.csv", index=False)
+    por_nivel.to_csv(salida / "por_nivel.csv")
+    por_j.to_csv(salida / "por_energia.csv")
+    figura_cruces(por_nivel, t, rasgos, variante).savefig(salida / "cruces.png", dpi=130)
+    plt.close("all")
+    print(f"\nCruces ({d['sujeto'].nunique()} sujetos, {len(d)} ensayos con puntaje)\n{por_nivel}\n")
+    with pd.option_context("display.float_format", lambda x: f"{x:.3g}"):
+        print(res.to_string(index=False))
+    return res
+
+
 def correr(variante=None, carpeta=None):
     variante = medicion.PRINCIPAL if variante is None else variante
     carpeta = Path(config.CARPETA_SALIDA if carpeta is None else carpeta)
@@ -154,5 +253,6 @@ def correr(variante=None, carpeta=None):
 
     with pd.option_context("display.float_format", lambda x: f"{x:.3g}"):
         print(resumen.to_string(index=False))
+    cruces(d, rasgos, salida, variante)       # cruces con la energia y el puntaje (si esta el CSV)
     print(f"\nGuardado en {salida}")
     return resumen
