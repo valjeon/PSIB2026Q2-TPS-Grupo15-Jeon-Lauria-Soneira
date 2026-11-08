@@ -17,11 +17,9 @@ cualquier punto de la ventana (refleja el ruido, no la respuesta).
 Lo llama pipeline.py en la etapa de grupo (python -m procesamiento.pipeline --grupo).
 """
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from scipy.signal import spectrogram
-
 from procesamiento import config, limpieza, localizador
 
 CANALES_ROI = getattr(config, "CANALES_ROI", ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"])
