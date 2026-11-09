@@ -21,7 +21,7 @@ def _buscar_datos():
 RAIZ_DATOS = _buscar_datos()                         # donde descargar_sujeto.sh deja el dataset
 CARPETA_SALIDA = RAIZ_DATOS.parent / "derived_mine"  # todo lo que genera el pipeline
 
-# --- Lectura (analisis.py) ------------------------------------------------------------------------------
+# Lectura (analisis.py)
 CANALES_DESCARTADOS = ["TP9", "TP10", "HEOR"]        # los descartan los autores (mastoides y ojo horizontal)
 CANAL_EOG = "VEO"                                    # ojo vertical: se usa para el rechazo por parpadeo
 # Regla de los autores: un trigger S 32..S 35 seguido inmediatamente por S 100 es un pulso laser.
@@ -31,19 +31,19 @@ NIVELES = {"E1": 1, "E2": 2, "E3": 3, "E4": 4}
 PULSOS_POR_NIVEL = 20
 EPOCAS_ESPERADAS = 80                                # 20 pulsos por nivel
 
-# --- Filtros (filtrado.py) ------------------------------------------------------------------------------
+# Filtros (filtrado.py) 
 PASA_ALTOS_HZ = 1.0                                  # como los autores (code/preprocessing_95.m)
 PASA_BAJOS_HZ = 100.0
 NOTCH_HZ = 50.0                                      # red electrica
 NOTCH_ANCHO_HZ = 4.0                                 # rechaza 48-52 Hz
 PASA_BAJOS_LEP_HZ = 30.0                             # solo para medir el LEP (copias, no lo que se guarda)
 
-# --- Epocas (epocas.py) ---------------------------------------------------------------------------------
+# Epocas (epocas.py)
 TMIN, TMAX = -1.0, 2.0                               # s: 1000 ms antes y 2000 ms despues del pulso (paper)
 BASELINE = (-1.0, 0.0)                               # linea de base: todo el pre-estimulo (paper)
 SFREQ_GUARDADO = 250                                 # Hz; se remuestrea antes de guardar (None = no remuestrear)
 
-# --- Canales ---------------------------------------------------------------------------------------------
+# Canales 
 CANALES_ROI = ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"]   # ROI (csoneira): Cz y vecinos (no hay FCz)
 CANAL_QC = "Cz"                                      # vertex: donde se buscan las latencias de N2 y P2
 CANALES_SIN_CRITERIO_EEG = ["Fp1", "Fpz", "Fp2", "AF7", "AF3", "AF4", "AF8"]   # frontopolares: amplitud ocular
@@ -55,7 +55,7 @@ FRACCION_VENTANA = 0.5                               # ventanas de N2/P2: ancho 
 MEDIA_PICO_S = 0.02                                  # +-20 ms alrededor de cada pico, para la medida por canal
 FRACCION_ROI_DATOS = 0.8                             # ROI que sale de los datos: canales con >= 80% del maximo
 
-# --- Limpieza (limpieza.py) y rechazo final (medicion.py) -----------------------------------------------------------------------------
+# Limpieza (limpieza.py) y rechazo final (medicion.py)
 Z_CANAL_MALO = 5.0                                   # z robusto del pico a pico pre-estimulo para un canal ruidoso
 FRAC_EPOCAS_CANAL_MALO = 0.5                         # ...y atipico en mas de esta fraccion de las epocas
 FACTOR_CANAL_PLANO = 0.1                             # pico a pico tipico < 0.1 x la mediana -> canal plano
@@ -67,13 +67,13 @@ UMBRAL_RECHAZO_UV = 100                              # pico a pico maximo en los
 UMBRAL_VEO_UV = 150                                  # pico a pico maximo del VEO (variante principal)
 UMBRALES_VEO_SENSIBILIDAD = [200, None]              # variantes de sensibilidad (None = sin rechazo por VEO)
 
-# --- Estimulo y puntaje por ensayo (medicion.agregar_estimulo, estadistica.cruces) ---------------------------
+# Estimulo y puntaje por ensayo (medicion.agregar_estimulo, estadistica.cruces)
 # CSV de los autores con la energia (J) y el puntaje de dolor (NRS 0-10) de cada ensayo, en la raiz del repo
 # (github.com/XiangyueZhao/Supplement-Data, CSV/participants_singletrial_95ByBP .csv).
 RUTA_RATINGS = RAIZ_DATOS.parent.parent / "participants_singletrial_95ByBP.csv"
 NRS_ESPERADO = {"E1": 2, "E2": 4, "E3": 6, "E4": 8}    # puntaje buscado por diseño (README del dataset)
 
-# --- Inclusion de sujetos (inclusion.py) -------------------------------------------------------------------
+# Inclusion de sujetos (inclusion.py) 
 MAX_PCT_EPOCAS_PERDIDAS = 25                         # > 25% de las 80 perdidas (todas las causas) -> se excluye
 MAX_PCT_CANALES_INTERPOLADOS = 25                    # > 25% de los canales EEG malos (autores + propios) -> se excluye
 MIN_EPOCAS_LIMPIAS = 10                              # minimo de epocas limpias en cada nivel de NIVELES_MINIMOS
