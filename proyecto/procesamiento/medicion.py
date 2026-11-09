@@ -1,6 +1,6 @@
 """Rechazo final y medicion por ensayo en la ROI, para la variante principal y las de sensibilidad.
 
-Sujetos: los incluidos en la etapa previa. Epocas: preprocesado.para_analisis (ref. sin frontales, 30 Hz,
+Sujetos: los incluidos en la etapa previa. Epocas: limpieza.para_analisis (ref. sin frontales, 30 Hz,
 linea de base). Ventanas de N2/P2: localizador/ventanas.csv.
 
 Por epoca (independiente del rechazo):
@@ -18,16 +18,14 @@ Salida en derived_mine/medicion/:
     inclusion_variantes.csv  una fila por sujeto y variante: epocas por nivel, criterios 1 y 3, incluido
 La estadistica de cada variante usa las filas no rechazadas de los sujetos incluidos en esa variante.
 
-Uso desde proyecto/:
-    python -m procesamiento.medicion
+Lo llama pipeline.py en la etapa de grupo (python -m procesamiento.pipeline --grupo).
 """
-import argparse
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from procesamiento import config, inclusion, localizador, preprocesado
+from procesamiento import config, inclusion, limpieza, localizador
 
 CANALES_ROI = getattr(config, "CANALES_ROI", ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"])
 UMBRAL_EEG = getattr(config, "UMBRAL_RECHAZO_UV", 100)
@@ -50,7 +48,7 @@ def _media_en(x, t, ventana):
 
 def medir_sujeto(sub, ventanas):
     """(epocas para analisis, DataFrame con una fila por epoca: metadata, rasgos y picos para el rechazo)."""
-    v, _ = preprocesado.para_analisis(sub)
+    v, _ = limpieza.para_analisis(sub)
     t = v.times
     tramo = (config.TMIN, ventanas["P2"][1])
     m_tramo = (t >= tramo[0]) & (t <= tramo[1])
@@ -98,7 +96,7 @@ def correr(sujetos=None, carpeta=None):
             if nombre == PRINCIPAL:
                 quedan.save(inclusion.ruta_finales(sub, carpeta), overwrite=True, verbose="ERROR")
 
-    rasgos = pd.concat(tablas, ignore_index=True)
+    rasgos = agregar_estimulo(pd.concat(tablas, ignore_index=True))   # suma laser_J y rating a cada epoca
     inc = pd.DataFrame(filas_inc)
     salida = carpeta / "medicion"
     salida.mkdir(parents=True, exist_ok=True)
@@ -115,8 +113,45 @@ def correr(sujetos=None, carpeta=None):
     for _, f in excl.iterrows():
         print(f"    excluido ({PRINCIPAL}) {f['sujeto']}: {f['motivo']}")
     print(f"\nGuardado en {salida}. Epocas finales ({PRINCIPAL}): sub-XXX_finales-epo.fif "
-          f"-> correr: python -m procesamiento.inclusion --etapa final")
+          f"(la inclusion final la hace pipeline.py)")
     return rasgos, inc
+
+
+def agregar_estimulo(rasgos, ruta=None):
+    """Agrega a cada epoca la energia del pulso (laser_J) y el puntaje de dolor informado (rating, NRS 0-10).
+
+    Fuente: CSV por ensayo de los autores (config.RUTA_RATINGS). Ese CSV lista, en orden, los ensayos que
+    quedan despues de sacar las epocas malas de los autores y rellena el final con ceros. Entonces su k-esima
+    fila con energia > 0 es el k-esimo ensayo (columna 'ensayo', 0..79) que no esta en las marcas.
+    Control: dentro de cada sujeto el orden de las energias tiene que coincidir con el nivel E1-E4; si no
+    coincide (por ejemplo, un sujeto con menos de 80 epocas extraidas) ese sujeto queda sin estos datos.
+    Si no esta el CSV, devuelve la tabla sin cambios.
+    """
+    ruta = Path(getattr(config, "RUTA_RATINGS", "") if ruta is None else ruta)
+    if not ruta.is_file():                                   # sin CSV: el pipeline sigue como antes
+        print(f"Aviso: no esta {ruta}: se sigue sin energia ni puntaje por ensayo")
+        return rasgos
+    csv_aut = pd.read_csv(ruta)
+    marcas = limpieza.leer_marcas()                          # epocas malas de los autores, numeradas desde 0
+    filas = []
+    for sub in rasgos["sujeto"].unique():
+        # filas del sujeto con energia > 0 (las de energia 0 son relleno), en el orden de los ensayos
+        g = csv_aut[(csv_aut["ID"] == int(sub[4:])) & (csv_aut["laser_power"] > 0)].sort_values("Trial_Num")
+        malas = marcas.get(sub, (set(), []))[0]
+        quedan = [i for i in range(config.EPOCAS_ESPERADAS) if i not in malas]   # ensayos que no marcaron
+        if len(quedan) == len(g):                            # misma cantidad: se pueden emparejar en orden
+            filas.append(pd.DataFrame({"sujeto": sub, "ensayo": quedan, "laser_J": g["laser_power"].to_numpy(),
+                                       "rating": g["Painrating"].to_numpy()}))
+    t = pd.concat(filas, ignore_index=True) if filas else pd.DataFrame(columns=["sujeto", "ensayo", "laser_J", "rating"])
+    out = rasgos.drop(columns=["laser_J", "rating"], errors="ignore").merge(t, on=["sujeto", "ensayo"], how="left")
+    # control: el orden de las energias de cada sujeto tiene que ser el de E1-E4; si no, se descarta ese sujeto
+    rango = out.groupby("sujeto")["laser_J"].rank(method="dense")
+    mal = out.loc[out["laser_J"].notna() & (rango != out["condicion"].map(config.NIVELES)), "sujeto"].unique()
+    out.loc[out["sujeto"].isin(mal), ["laser_J", "rating"]] = np.nan
+    sin = sorted(set(out.loc[out["laser_J"].isna(), "sujeto"]))
+    print(f"Energia y puntaje por ensayo: {out['rating'].notna().sum()} epocas con puntaje"
+          + (f"; sin alinear: {sin}" if sin else ""))
+    return out
 
 
 def datos_variante(variante=None, carpeta=None):
@@ -127,14 +162,3 @@ def datos_variante(variante=None, carpeta=None):
     inc = pd.read_csv(salida / "inclusion_variantes.csv")
     ok = inc[(inc["variante"] == variante) & inc["incluido"]]["sujeto"]
     return rasgos[rasgos["sujeto"].isin(ok) & ~rasgos[f"rechazada_{variante}"]].reset_index(drop=True)
-
-
-def main(argv=None):
-    p = argparse.ArgumentParser(description="Rechazo final y rasgos por ensayo en la ROI")
-    p.add_argument("sujetos", nargs="*", help="por defecto, los incluidos en inclusion_previa.csv")
-    a = p.parse_args(argv)
-    correr(a.sujetos or None)
-
-
-if __name__ == "__main__":
-    main()

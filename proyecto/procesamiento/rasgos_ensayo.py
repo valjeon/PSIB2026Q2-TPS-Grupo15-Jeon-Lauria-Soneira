@@ -14,17 +14,13 @@ celda tiempo-frecuencia; cambio = 10*log10(potencia en la ventana / potencia en 
 La latencia de P2 no se mide: P2 es ancha y poco marcada, y en un ensayo individual su maximo cae casi en
 cualquier punto de la ventana (refleja el ruido, no la respuesta).
 
-Uso desde proyecto/ (despues de medicion.py):
-    python -m procesamiento.rasgos_ensayo
+Lo llama pipeline.py en la etapa de grupo (python -m procesamiento.pipeline --grupo).
 """
-import argparse
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from scipy.signal import spectrogram
-
-from procesamiento import config, localizador, preprocesado
+from procesamiento import config, limpieza, localizador
 
 CANALES_ROI = getattr(config, "CANALES_ROI", ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"])
 VENTANA_STFT_S = 0.25
@@ -58,8 +54,8 @@ def cambio_potencia(x, sfreq, tmin, banda, ventana, base=BASE_ESPECTRAL):
 
 def rasgos_sujeto(sub, ventanas):
     """DataFrame con 'ensayo' y las columnas nuevas, para las epocas de para_analisis del sujeto."""
-    v30, _ = preprocesado.para_analisis(sub)                       # 30 Hz: para la latencia
-    vfull, _ = preprocesado.para_analisis(sub, pasa_bajos=False)   # 1-100 Hz: para los espectrales
+    v30, _ = limpieza.para_analisis(sub)                       # 30 Hz: para la latencia
+    vfull, _ = limpieza.para_analisis(sub, pasa_bajos=False)   # 1-100 Hz: para los espectrales
     d = pd.DataFrame({"sujeto": sub, "ensayo": v30.metadata["ensayo"].to_numpy(),
                       "lat_N2_ms": latencia_n2(v30, ventanas["N2"])})
     sf, tmin = vfull.info["sfreq"], vfull.tmin
@@ -73,7 +69,7 @@ def correr(carpeta=None):
     carpeta = Path(config.CARPETA_SALIDA if carpeta is None else carpeta)
     ruta = carpeta / "medicion" / "rasgos_ensayos.csv"
     if not ruta.exists():
-        raise FileNotFoundError(f"No esta {ruta}. Corre antes: python -m procesamiento.medicion")
+        raise FileNotFoundError(f"No esta {ruta}. Corre antes: python -m procesamiento.pipeline --grupo")
     base = pd.read_csv(ruta).drop(columns=COLUMNAS_NUEVAS, errors="ignore")
     ventanas = localizador.leer_ventanas(carpeta)
     nuevos = pd.concat([rasgos_sujeto(s, ventanas) for s in base["sujeto"].unique()], ignore_index=True)
@@ -82,12 +78,3 @@ def correr(carpeta=None):
     print(f"Rasgos agregados a {ruta}: {', '.join(COLUMNAS_NUEVAS)}")
     print(todo.groupby("condicion")[["N2P2_uV"] + COLUMNAS_NUEVAS].median().round(2).to_string())
     return todo
-
-
-def main(argv=None):
-    argparse.ArgumentParser(description="Latencia de N2 y rasgos espectrales por ensayo").parse_args(argv)
-    correr()
-
-
-if __name__ == "__main__":
-    main()

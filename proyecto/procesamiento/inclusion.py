@@ -1,6 +1,6 @@
 """Criterios de inclusion de sujetos, definidos ANTES de ver los datos (config.py). Nunca miran el efecto.
 
-Etapa 'previa' (despues de canales_malos + preprocesado; decide quien entra al localizador):
+Etapa 'previa' (despues de limpieza.py; decide quien entra al localizador):
     2. canales interpolados (autores + propios) > MAX_PCT_CANALES_INTERPOLADOS % de los EEG    (PREP)
     4. Cz interpolado, o mas de MAX_ROI_INTERPOLADOS canales de la ROI interpolados
     5. sin canal VEO
@@ -10,23 +10,20 @@ Etapa 'final' (despues del rechazo final; decide quien entra al analisis): adema
     3. menos de MIN_EPOCAS_LIMPIAS epocas en algun nivel de NIVELES_MINIMOS (E1, E4)
 
 Lee:
-    derived_mine/preprocesado_resumen.csv   (preprocesado.py)
+    derived_mine/preprocesado_resumen.csv   (limpieza.py)
     sub-XXX_preprocesadas-epo.fif            (canales EEG y VEO)
     etapa final: las epocas despues del rechazo final, en la ruta que devuelve ruta_finales(sub)
 Escribe derived_mine/inclusion_<etapa>.csv: una fila por sujeto con el valor de cada criterio, si pasa,
 y el motivo de exclusion.
 
-Uso desde proyecto/:
-    python -m procesamiento.inclusion                    (etapa previa, todos los preprocesados)
-    python -m procesamiento.inclusion --etapa final
+Lo llama pipeline.py en la etapa de grupo (python -m procesamiento.pipeline --grupo).
 """
-import argparse
 from pathlib import Path
 
 import mne
 import pandas as pd
 
-from procesamiento import config, preprocesado
+from procesamiento import config, limpieza
 
 EPOCAS_ESPERADAS = getattr(config, "EPOCAS_ESPERADAS", 4 * config.PULSOS_POR_NIVEL)
 MAX_PCT_EPOCAS_PERDIDAS = getattr(config, "MAX_PCT_EPOCAS_PERDIDAS", 25)
@@ -44,7 +41,7 @@ def ruta_finales(sub, carpeta=None):
 def _resumen(carpeta):
     ruta = carpeta / "preprocesado_resumen.csv"
     if not ruta.exists():
-        raise FileNotFoundError(f"No esta {ruta}. Corre antes: python -m procesamiento.preprocesado")
+        raise FileNotFoundError(f"No esta {ruta}. Corre antes: python -m procesamiento.pipeline")
     return pd.read_csv(ruta, dtype={"interpolados_autores": str, "interpolados_propios": str}).fillna("")
 
 
@@ -102,10 +99,10 @@ def evaluar(etapa="previa", sujetos=None, carpeta=None):
     filas = []
     for sub in sujetos:
         fila = {"sujeto": sub}
-        if sub not in res.index or not preprocesado.ruta_preprocesadas(sub, carpeta).exists():
+        if sub not in res.index or not limpieza.ruta_preprocesadas(sub, carpeta).exists():
             filas.append({**fila, "incluido": False, "motivo": "sin preprocesar"})
             continue
-        ep = mne.read_epochs(preprocesado.ruta_preprocesadas(sub, carpeta), preload=False, verbose="ERROR")
+        ep = mne.read_epochs(limpieza.ruta_preprocesadas(sub, carpeta), preload=False, verbose="ERROR")
         r = res.loc[sub]
         fila["segmentadas"] = int(r["segmentadas"])
         valores, motivos = criterios_previos(r, ep)
@@ -129,25 +126,3 @@ def incluidos(etapa="previa", carpeta=None):
     ruta = Path(config.CARPETA_SALIDA if carpeta is None else carpeta) / f"inclusion_{etapa}.csv"
     t = pd.read_csv(ruta)
     return t[t["incluido"]]["sujeto"].tolist()
-
-
-def main(argv=None):
-    p = argparse.ArgumentParser(description="Criterios de inclusion de sujetos")
-    p.add_argument("sujetos", nargs="*", help="por defecto, todos los de preprocesado_resumen.csv")
-    p.add_argument("--etapa", choices=["previa", "final"], default="previa")
-    a = p.parse_args(argv)
-    t = evaluar(a.etapa, a.sujetos or None)
-    ruta = Path(config.CARPETA_SALIDA) / f"inclusion_{a.etapa}.csv"
-    t.to_csv(ruta, index=False)
-
-    print(f"Etapa {a.etapa}: {int(t['incluido'].sum())} de {len(t)} sujetos incluidos")
-    excl = t[~t["incluido"]]
-    if len(excl):
-        print("Excluidos:")
-        for _, f in excl.iterrows():
-            print(f"  {f['sujeto']}: {f['motivo']}")
-    print(f"Registro: {ruta}")
-
-
-if __name__ == "__main__":
-    main()

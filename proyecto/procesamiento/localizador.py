@@ -1,7 +1,7 @@
 """Localizador colapsado (Luck & Gaspelin 2017): ROI y latencias de N2/P2 sin mirar la diferencia entre niveles.
 
 Sujetos: los incluidos en la etapa previa (inclusion_previa.csv).
-Por sujeto: epocas preprocesadas leidas con preprocesado.para_analisis (ref. sin frontales, 30 Hz, linea de base),
+Por sujeto: epocas preprocesadas leidas con limpieza.para_analisis (ref. sin frontales, 30 Hz, linea de base),
     promedio ponderado por 1/varianza del ruido pre-estímulo (inhomogéneo, caso 2) en cada nivel -> ERP colapsado.
 Grupo: promedio de los ERP colapsados (cada sujeto pesa igual).
 
@@ -15,20 +15,17 @@ Grupo: promedio de los ERP colapsados (cada sujeto pesa igual).
 
 Salida en derived_mine/localizador/: resumen por sujeto, medida por canal, gran promedio (-ave.fif) y figuras.
 
-Uso desde proyecto/:
-    python -m procesamiento.localizador
+Lo llama pipeline.py en la etapa de grupo (python -m procesamiento.pipeline --grupo).
 """
-import argparse
 from pathlib import Path
 
-import matplotlib
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 
-from procesamiento import config, inclusion, preprocesado
+from procesamiento import config, inclusion, limpieza
 
 CANALES_ROI = getattr(config, "CANALES_ROI", ["Cz", "FC1", "FC2", "C1", "C2", "CP1", "CPz", "CP2"])
 MEDIA_PICO_S = getattr(config, "MEDIA_PICO_S", 0.02)        # +-20 ms alrededor de cada pico
@@ -51,7 +48,7 @@ def promedio_ponderado(x, t):
 
 def erp_colapsado(sub):
     """ERP del sujeto: promedio ponderado por 1/varianza del ruido pre-estímulo (inhomogéneo, caso 2) en cada nivel."""
-    v, _ = preprocesado.para_analisis(sub)
+    v, _ = limpieza.para_analisis(sub)
     v = v.copy().pick("eeg")
     cond = v.metadata["condicion"].to_numpy()
     promedios = [promedio_ponderado(v.get_data()[cond == c], v.times) for c in config.NIVELES if (cond == c).any()]
@@ -231,15 +228,3 @@ def correr(sujetos=None, carpeta=None):
         print("Maximo fuera de la ROI: " + ", ".join(f"{s} ({c})" for s, c in zip(fuera["sujeto"], fuera["canal_max"])))
     print(f"\nGuardado en {salida}")
     return ga, tabla, roi_datos, (t_n2, t_p2)
-
-
-def main(argv=None):
-    p = argparse.ArgumentParser(description="Localizador colapsado: ROI y latencias de N2/P2")
-    p.add_argument("sujetos", nargs="*", help="por defecto, los incluidos en inclusion_previa.csv")
-    a = p.parse_args(argv)
-    matplotlib.use("Agg")
-    correr(a.sujetos or None)
-
-
-if __name__ == "__main__":
-    main()
