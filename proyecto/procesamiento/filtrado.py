@@ -1,7 +1,5 @@
-"""Paso 1: filtrado de la senal continua de cada sesion, con lo elegido en el analisis previo.
-
-Pasabanda FIR de 1 a 100 Hz y notch FIR de 48 a 52 Hz, sobre la senal continua (antes de cortar en epocas).
-La lectura de las sesiones y de los pulsos es la misma del analisis previo (analisis.py).
+"""Filtrado de la senal continua de cada sesion (antes de cortar en épocas).
+Pasabanda FIR de fase cero de 1-100 Hz y notch FIR de 48-52 Hz.
 """
 from pathlib import Path
 
@@ -10,30 +8,31 @@ import numpy as np
 
 from procesamiento import analisis, config
 
-CANALES = ["eeg", "eog"]     # el VEO se filtra igual que el EEG
-# Los cortes estan en config.py: PASA_ALTOS_HZ, PASA_BAJOS_HZ, NOTCH_HZ, NOTCH_ANCHO_HZ
+CANALES = ["eeg", "eog"]
 
 
 def filtrar(raw):
-    """Pasabanda 1-100 Hz y notch 48-52 Hz, FIR de fase cero, sobre una copia de la sesion continua."""
+    """Pasabanda 1-100 Hz y notch 48-52 Hz (FIR de fase cero) sobre una copia de la señal continua."""
     filt = raw.copy().filter(config.PASA_ALTOS_HZ, config.PASA_BAJOS_HZ, picks=CANALES,
-                             method="fir", fir_design="firwin", verbose="ERROR")
+                             method="fir", fir_design="firwin", verbose="ERROR")    # MNE aplica el FIR de fase lineal sin desfase
     filt.notch_filter(config.NOTCH_HZ, notch_widths=config.NOTCH_ANCHO_HZ, picks=CANALES,
                       method="fir", fir_design="firwin", verbose="ERROR")
-    return filt
+    return filt # se filtra solo la copia, no el crudo
 
 
 def fig_antes_despues(raw, filt, titulo):
-    """PSD media entre canales EEG antes y despues del filtro, para comprobar que hizo lo que se queria."""
-    freqs, antes = analisis.psd_media(raw)
-    _, despues = analisis.psd_media(filt)
+    """PSD media de los canales EEG antes y despues del filtro."""
+    freqs, antes = analisis.psd_media(raw)      # PSD del crudo (promedio entre canales)
+    _, despues = analisis.psd_media(filt)       # PSD del filtrado
     fig, ax = plt.subplots(figsize=(8, 4.6))
-    m = freqs >= 0.5
-    ax.axvspan(config.PASA_ALTOS_HZ, config.PASA_BAJOS_HZ, color="#e5f4e4", alpha=0.6, zorder=0)
+    desde_05 = freqs >= 0.5         # se omite < 0,5 Hz porque en escala logarítmica no se lee
+
+    ax.axvspan(config.PASA_ALTOS_HZ, config.PASA_BAJOS_HZ, color="#e5f4e4", alpha=0.6, zorder=0)    # banda de paso
     for f in (config.PASA_ALTOS_HZ, config.NOTCH_HZ, config.PASA_BAJOS_HZ):
-        ax.axvline(f, color="k", ls="--", lw=0.8)
-    ax.semilogx(freqs[m], 10 * np.log10(antes[m]), color="#9a9993", lw=1.2, label="crudo")
-    ax.semilogx(freqs[m], 10 * np.log10(despues[m]), color="#2a78d6", lw=1.4, label="filtrado")
+        ax.axvline(f, color="k", ls="--", lw=0.8)   # líneas en 1, 50 y 100 Hz
+
+    ax.semilogx(freqs[desde_05], 10 * np.log10(antes[desde_05]), color="#9a9993", lw=1.2, label="crudo")    # dB
+    ax.semilogx(freqs[desde_05], 10 * np.log10(despues[desde_05]), color="#2a78d6", lw=1.4, label="filtrado")
     ax.set_xlim(0.3, freqs.max())
     ax.grid(True, which="both", color="0.9", lw=0.6)
     ax.set_xlabel("frecuencia (Hz)")
@@ -46,17 +45,17 @@ def fig_antes_despues(raw, filt, titulo):
 
 
 def guardar_verificacion(sub, sesion=0, carpeta=None):
-    """Filtra una sesion del sujeto y guarda la PSD antes y despues en derived_mine/filtrado/.
-
-    sesion: posicion en la lista de sesiones (0 = la primera). Devuelve la ruta de la figura.
-    """
-    vhdr = analisis.listar_sesiones(sub)[sesion]
-    ses = vhdr.parent.parent.name                       # .../sub-004/ses-1/eeg/x.vhdr -> "ses-1"
+    """Filtra una sesion del sujeto y guarda su PSD de antes y despues en derived_mine/filtrado/. Devuelve la ruta de la figura."""
+    vhdr = analisis.listar_sesiones(sub)[sesion]    # sesion
+    ses = vhdr.parent.parent.name
     raw = analisis.cargar_sesion(vhdr)
-    fig = fig_antes_despues(raw, filtrar(raw), f"{sub} {ses}: PSD antes y despues del filtro "
-                                               f"({config.PASA_ALTOS_HZ:g}-{config.PASA_BAJOS_HZ:g} Hz, notch "
-                                               f"{config.NOTCH_HZ - config.NOTCH_ANCHO_HZ / 2:g}-"
-                                               f"{config.NOTCH_HZ + config.NOTCH_ANCHO_HZ / 2:g} Hz)")
+
+    ini_notch = config.NOTCH_HZ - config.NOTCH_ANCHO_HZ / 2          # 48 Hz
+    fin_notch = config.NOTCH_HZ + config.NOTCH_ANCHO_HZ / 2          # 52 Hz
+    titulo = (f"{sub} {ses}: PSD antes y despues del filtro "
+              f"({config.PASA_ALTOS_HZ:g}-{config.PASA_BAJOS_HZ:g} Hz, notch {ini_notch:g}-{fin_notch:g} Hz)")
+    fig = fig_antes_despues(raw, filtrar(raw), titulo)
+
     destino = Path(config.CARPETA_SALIDA if carpeta is None else carpeta) / "filtrado"
     destino.mkdir(parents=True, exist_ok=True)
     ruta = destino / f"{sub}_{ses}_psd_filtro.png"
@@ -66,11 +65,9 @@ def guardar_verificacion(sub, sesion=0, carpeta=None):
 
 
 def leer_y_filtrar(vhdr):
-    """Paso 1 completo para una sesion: lee el crudo, encuentra los pulsos y filtra la senal continua.
-
-    Devuelve (sesion filtrada, pulsos [[muestra, 0, nivel]], nombre de la sesion, sesion cruda).
-    La cruda se devuelve para poder armar la metadata o comparar antes y despues; quien llama la libera.
-    """
-    raw = analisis.cargar_sesion(vhdr)
-    ev = analisis.pulsos_laser(raw)
+    """Para cada sesion: lee el crudo, encuentra los pulsos y filtra la señal continua.
+    Devuelve sesion filtrada, pulsos, nombre de la sesion, sesion cruda.¿"""
+    raw = analisis.cargar_sesion(vhdr)      # crudo
+    ev = analisis.pulsos_laser(raw)         # pulsos
+    # devuelve también el crudo en caso de que se quiera comparar o armar la metadata, se puede elegir si devolverlo o no
     return filtrar(raw), ev, vhdr.parent.parent.name, raw
